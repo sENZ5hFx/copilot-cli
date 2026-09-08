@@ -1,0 +1,32 @@
+name: Installer regression tests
+
+on:
+  pull_request:
+    paths:
+      - install.sh
+      - test/install_test.sh
+      - .github/workflows/installer-tests.yml
+  push:
+    branches:
+      - main
+    paths:
+      - install.sh
+      - test/install_test.sh
+      - .github/workflows/installer-tests.yml
+
+permissions:
+  contents: read
+
+jobs:
+  installer-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Bash syntax
+        run: bash -n install.sh test/install_test.sh
+
+      - name: Run installer regression suite
+        run: bash test/install_test.sh
