@@ -140,7 +140,8 @@ test_rejects_duplicate_checksum_entries() {
   setup_case duplicate-checksums
   make_regular_archive
   write_manifest_once
-  cat "$FIXTURE_MANIFEST" >> "$FIXTURE_MANIFEST"
+  checksum_line="$(cat "$FIXTURE_MANIFEST")"
+  printf '%s\n%s\n' "$checksum_line" "$checksum_line" > "$FIXTURE_MANIFEST"
 
   run_installer
   assert_status_nonzero || return 1
