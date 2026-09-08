@@ -195,6 +195,39 @@ test_installs_uniquely_verified_binary() {
   [ "$(cat "$PREFIX/bin/copilot")" = "verified-binary" ] || fail "installed binary content does not match verified artifact"
 }
 
+test_existing_destination_symlink_is_replaced_without_touching_target() {
+  setup_case destination-symlink
+  make_regular_archive verified-binary
+  write_manifest_once
+
+  linked_target="$CASE_DIR/linked-target"
+  printf '%s\n' preserve-target > "$linked_target"
+  ln -s "$linked_target" "$PREFIX/bin/copilot"
+
+  run_installer
+  assert_status_zero || return 1
+  [ ! -L "$PREFIX/bin/copilot" ] || fail "installer left destination as a symlink"
+  [ -f "$PREFIX/bin/copilot" ] || fail "installer did not replace destination with a regular file"
+  [ "$(cat "$PREFIX/bin/copilot")" = "verified-binary" ] || fail "installed destination does not contain verified binary"
+  [ "$(cat "$linked_target")" = "preserve-target" ] || fail "installer overwrote the symlink target"
+}
+
+test_dangling_destination_symlink_is_replaced() {
+  setup_case dangling-destination-symlink
+  make_regular_archive verified-binary
+  write_manifest_once
+
+  missing_target="$CASE_DIR/missing-target"
+  ln -s "$missing_target" "$PREFIX/bin/copilot"
+
+  run_installer
+  assert_status_zero || return 1
+  [ ! -L "$PREFIX/bin/copilot" ] || fail "installer left dangling destination as a symlink"
+  [ -f "$PREFIX/bin/copilot" ] || fail "installer did not replace dangling symlink with a regular file"
+  [ "$(cat "$PREFIX/bin/copilot")" = "verified-binary" ] || fail "replacement binary content does not match verified artifact"
+  [ ! -e "$missing_target" ] || fail "installer created or modified the dangling symlink target"
+}
+
 test_unsupported_os_never_falls_through_to_winget() {
   setup_case unsupported-os
   WINGET_LOG="$CASE_DIR/winget.log"
@@ -261,6 +294,8 @@ run_test "stale installed binary cannot mask malformed archive" test_missing_arc
 run_test "symlink copilot payload is rejected" test_rejects_symlink_binary
 run_test "missing checksum manifest is fatal" test_rejects_missing_checksum_manifest
 run_test "uniquely verified binary installs successfully" test_installs_uniquely_verified_binary
+run_test "existing destination symlink is replaced without touching its target" test_existing_destination_symlink_is_replaced_without_touching_target
+run_test "dangling destination symlink is replaced safely" test_dangling_destination_symlink_is_replaced
 run_test "unsupported OS does not fall through to winget" test_unsupported_os_never_falls_through_to_winget
 run_test "prerelease git arguments do not expose GITHUB_TOKEN" test_prerelease_git_arguments_do_not_expose_token
 

@@ -170,13 +170,30 @@ if [ ! -f "$STAGED_BINARY" ] || [ -L "$STAGED_BINARY" ]; then
   exit 1
 fi
 
-# Install only the validated staged binary.
-if [ -f "$INSTALL_DIR/copilot" ]; then
-  echo "Notice: Replacing copilot binary found at $INSTALL_DIR/copilot."
+# Install only the validated staged binary. Copy to a fresh file in the target
+# directory, then atomically rename it over the destination so an existing
+# symlink is replaced rather than followed.
+DESTINATION="$INSTALL_DIR/copilot"
+if [ -e "$DESTINATION" ] || [ -L "$DESTINATION" ]; then
+  echo "Notice: Replacing copilot binary found at $DESTINATION."
 fi
-cp "$STAGED_BINARY" "$INSTALL_DIR/copilot"
-chmod +x "$INSTALL_DIR/copilot"
-echo "✓ GitHub Copilot CLI installed to $INSTALL_DIR/copilot"
+TMP_DESTINATION="$(mktemp "$INSTALL_DIR/.copilot.XXXXXX")"
+if ! cp "$STAGED_BINARY" "$TMP_DESTINATION"; then
+  rm -f -- "$TMP_DESTINATION"
+  echo "Error: Could not stage copilot binary in $INSTALL_DIR." >&2
+  exit 1
+fi
+if ! chmod +x "$TMP_DESTINATION"; then
+  rm -f -- "$TMP_DESTINATION"
+  echo "Error: Could not make staged copilot binary executable." >&2
+  exit 1
+fi
+if ! mv -f -- "$TMP_DESTINATION" "$DESTINATION"; then
+  rm -f -- "$TMP_DESTINATION"
+  echo "Error: Could not replace $DESTINATION." >&2
+  exit 1
+fi
+echo "✓ GitHub Copilot CLI installed to $DESTINATION"
 
 # Check if installed binary is accessible
 if ! command -v copilot >/dev/null 2>&1; then
