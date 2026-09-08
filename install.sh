@@ -98,29 +98,42 @@ elif command -v wget >/dev/null 2>&1; then
   wget -qO "$TMP_CHECKSUMS" "${WGET_AUTH[@]}" "$CHECKSUMS_URL" 2>/dev/null && CHECKSUMS_AVAILABLE=true
 fi
 
-if [ "$CHECKSUMS_AVAILABLE" = true ]; then
-  CHECKSUM_LINE="$(awk -v artifact="$ARTIFACT_NAME" '$2 == artifact || $2 == "*" artifact { print; exit }' "$TMP_CHECKSUMS")"
-  if [ -z "$CHECKSUM_LINE" ]; then
+if [ "$CHECKSUMS_AVAILABLE" != true ]; then
+  echo "Error: Could not download the checksum manifest; refusing an unverified install." >&2
+  exit 1
+fi
+
+CHECKSUM_MATCHES="$(awk -v artifact="$ARTIFACT_NAME" '$2 == artifact || $2 == "*" artifact { print }' "$TMP_CHECKSUMS")"
+CHECKSUM_COUNT="$(printf '%s\n' "$CHECKSUM_MATCHES" | awk 'NF { count++ } END { print count + 0 }')"
+case "$CHECKSUM_COUNT" in
+  1) CHECKSUM_LINE="$CHECKSUM_MATCHES" ;;
+  0)
     echo "Error: No checksum found for $ARTIFACT_NAME." >&2
     exit 1
-  fi
-  if command -v sha256sum >/dev/null 2>&1; then
-    if (cd "$TMP_DIR" && printf '%s\n' "$CHECKSUM_LINE" | sha256sum -c >/dev/null 2>&1); then
-      echo "✓ Checksum validated"
-    else
-      echo "Error: Checksum validation failed." >&2
-      exit 1
-    fi
-  elif command -v shasum >/dev/null 2>&1; then
-    if (cd "$TMP_DIR" && printf '%s\n' "$CHECKSUM_LINE" | shasum -a 256 -c >/dev/null 2>&1); then
-      echo "✓ Checksum validated"
-    else
-      echo "Error: Checksum validation failed." >&2
-      exit 1
-    fi
+    ;;
+  *)
+    echo "Error: Found $CHECKSUM_COUNT checksum entries for $ARTIFACT_NAME; refusing ambiguous verification." >&2
+    exit 1
+    ;;
+esac
+
+if command -v sha256sum >/dev/null 2>&1; then
+  if (cd "$TMP_DIR" && printf '%s\n' "$CHECKSUM_LINE" | sha256sum -c >/dev/null 2>&1); then
+    echo "✓ Checksum validated"
   else
-    echo "Warning: No sha256sum or shasum found, skipping checksum validation."
+    echo "Error: Checksum validation failed." >&2
+    exit 1
   fi
+elif command -v shasum >/dev/null 2>&1; then
+  if (cd "$TMP_DIR" && printf '%s\n' "$CHECKSUM_LINE" | shasum -a 256 -c >/dev/null 2>&1); then
+    echo "✓ Checksum validated"
+  else
+    echo "Error: Checksum validation failed." >&2
+    exit 1
+  fi
+else
+  echo "Error: No sha256sum or shasum command is available; refusing an unverified install." >&2
+  exit 1
 fi
 
 # Check that the file is a valid tarball
@@ -142,15 +155,27 @@ if ! mkdir -p "$INSTALL_DIR"; then
   exit 1
 fi
 
-# Install binary
+# Extract into isolated staging so an existing binary cannot satisfy validation.
+STAGE_DIR="$TMP_DIR/extracted"
+mkdir -p "$STAGE_DIR"
+ARCHIVE_LIST="$TMP_DIR/archive.list"
+tar -tzf "$TMP_TARBALL" > "$ARCHIVE_LIST"
+if grep -Eq '(^/|(^|/)\.\.(/|$))' "$ARCHIVE_LIST"; then
+  echo "Error: Archive contains an unsafe absolute or parent-traversal path." >&2
+  exit 1
+fi
+tar -xzf "$TMP_TARBALL" -C "$STAGE_DIR"
+STAGED_BINARY="$STAGE_DIR/copilot"
+if [ ! -f "$STAGED_BINARY" ] || [ -L "$STAGED_BINARY" ]; then
+  echo "Error: Archive did not contain a regular top-level copilot binary." >&2
+  exit 1
+fi
+
+# Install only the validated staged binary.
 if [ -f "$INSTALL_DIR/copilot" ]; then
   echo "Notice: Replacing copilot binary found at $INSTALL_DIR/copilot."
 fi
-tar -xz -C "$INSTALL_DIR" -f "$TMP_TARBALL"
-if [ ! -f "$INSTALL_DIR/copilot" ]; then
-  echo "Error: Installed archive did not contain the expected copilot binary at $INSTALL_DIR/copilot." >&2
-  exit 1
-fi
+cp "$STAGED_BINARY" "$INSTALL_DIR/copilot"
 chmod +x "$INSTALL_DIR/copilot"
 echo "✓ GitHub Copilot CLI installed to $INSTALL_DIR/copilot"
 
