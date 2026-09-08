@@ -15,9 +15,7 @@ permissions:
 
 jobs:
   close-on-adding-invalid-label:
-    if:
-      github.repository == 'github/copilot-cli' && github.event.label.name ==
-      'invalid'
+    if: ${{ github.event.label.name == 'invalid' }}
     runs-on: ubuntu-latest
 
     steps:
