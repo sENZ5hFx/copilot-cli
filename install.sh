@@ -12,10 +12,11 @@ set -e
 echo "Installing GitHub Copilot CLI..."
 
 # Detect platform
-case "$(uname -s || echo "")" in
+OS="$(uname -s || echo "")"
+case "$OS" in
   Darwin*) PLATFORM="darwin" ;;
   Linux*) PLATFORM="linux" ;;
-  *)
+  CYGWIN*|MINGW*|MSYS*)
     if command -v winget >/dev/null 2>&1; then
       echo "Windows detected. Installing via winget..."
       winget install GitHub.Copilot
@@ -25,6 +26,7 @@ case "$(uname -s || echo "")" in
       exit 1
     fi
     ;;
+  *) echo "Error: Unsupported operating system $OS" >&2 ; exit 1 ;;
 esac
 
 # Detect architecture
@@ -54,7 +56,7 @@ elif [ "${VERSION}" = "prerelease" ]; then
     echo "Error: git is required to install prerelease versions" >&2
     exit 1
   fi
-  VERSION="$(git ls-remote --tags --sort "version:refname" "$GIT_REMOTE" | tail -1 | awk -F/ '{print $NF}')"
+  VERSION="$(git ls-remote --refs --tags --sort "version:refname" "$GIT_REMOTE" | awk -F/ '{print $NF}' | awk '/-/ { tag=$0 } END { if (tag) print tag }')"
   if [ -z "$VERSION" ]; then
     echo "Error: Could not determine prerelease version" >&2
     exit 1
@@ -76,7 +78,8 @@ echo "Downloading from: $DOWNLOAD_URL"
 # Download and extract with error handling
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$TMP_DIR"' EXIT
-TMP_TARBALL="$TMP_DIR/copilot-${PLATFORM}-${ARCH}.tar.gz"
+ARTIFACT_NAME="copilot-${PLATFORM}-${ARCH}.tar.gz"
+TMP_TARBALL="$TMP_DIR/$ARTIFACT_NAME"
 if command -v curl >/dev/null 2>&1; then
   curl -fsSL "${CURL_AUTH[@]}" "$DOWNLOAD_URL" -o "$TMP_TARBALL"
 elif command -v wget >/dev/null 2>&1; then
@@ -96,15 +99,20 @@ elif command -v wget >/dev/null 2>&1; then
 fi
 
 if [ "$CHECKSUMS_AVAILABLE" = true ]; then
+  CHECKSUM_LINE="$(awk -v artifact="$ARTIFACT_NAME" '$2 == artifact || $2 == "*" artifact { print; exit }' "$TMP_CHECKSUMS")"
+  if [ -z "$CHECKSUM_LINE" ]; then
+    echo "Error: No checksum found for $ARTIFACT_NAME." >&2
+    exit 1
+  fi
   if command -v sha256sum >/dev/null 2>&1; then
-    if (cd "$TMP_DIR" && sha256sum -c --ignore-missing SHA256SUMS.txt >/dev/null 2>&1); then
+    if (cd "$TMP_DIR" && printf '%s\n' "$CHECKSUM_LINE" | sha256sum -c >/dev/null 2>&1); then
       echo "✓ Checksum validated"
     else
       echo "Error: Checksum validation failed." >&2
       exit 1
     fi
   elif command -v shasum >/dev/null 2>&1; then
-    if (cd "$TMP_DIR" && shasum -a 256 -c --ignore-missing SHA256SUMS.txt >/dev/null 2>&1); then
+    if (cd "$TMP_DIR" && printf '%s\n' "$CHECKSUM_LINE" | shasum -a 256 -c >/dev/null 2>&1); then
       echo "✓ Checksum validated"
     else
       echo "Error: Checksum validation failed." >&2
@@ -139,6 +147,10 @@ if [ -f "$INSTALL_DIR/copilot" ]; then
   echo "Notice: Replacing copilot binary found at $INSTALL_DIR/copilot."
 fi
 tar -xz -C "$INSTALL_DIR" -f "$TMP_TARBALL"
+if [ ! -f "$INSTALL_DIR/copilot" ]; then
+  echo "Error: Installed archive did not contain the expected copilot binary at $INSTALL_DIR/copilot." >&2
+  exit 1
+fi
 chmod +x "$INSTALL_DIR/copilot"
 echo "✓ GitHub Copilot CLI installed to $INSTALL_DIR/copilot"
 
