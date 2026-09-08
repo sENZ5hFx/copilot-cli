@@ -43,7 +43,6 @@ GIT_REMOTE="https://github.com/github/copilot-cli"
 if [ -n "$GITHUB_TOKEN" ]; then
   CURL_AUTH=(-H "Authorization: token $GITHUB_TOKEN")
   WGET_AUTH=(--header="Authorization: token $GITHUB_TOKEN")
-  GIT_REMOTE="https://x-access-token:${GITHUB_TOKEN}@github.com/github/copilot-cli"
 fi
 
 # Determine download URL based on VERSION
