@@ -17,6 +17,7 @@ jobs:
   close-on-adding-invalid-label:
     if: ${{ github.event.label.name == 'invalid' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Close issue
@@ -24,11 +25,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           URL: ${{ github.event.issue.html_url }}
-        run: gh issue close $URL
+        run: gh issue close "$URL"
 
       - name: Close PR
         if: ${{ github.event_name == 'pull_request_target' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr close $URL
+        run: gh pr close "$URL"
