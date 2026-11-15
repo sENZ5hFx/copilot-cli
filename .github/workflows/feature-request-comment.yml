@@ -11,6 +11,7 @@ jobs:
   add-comment-to-enhancement-issues:
     if: github.event.label.name == 'enhancement'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
