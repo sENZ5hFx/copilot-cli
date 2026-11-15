@@ -11,6 +11,7 @@ jobs:
   add-comment-to-unable-to-reproduce-issues:
     if: github.event.label.name == 'unable-to-reproduce'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Update issue
         env:
