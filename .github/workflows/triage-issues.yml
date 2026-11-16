@@ -12,6 +12,7 @@ permissions:
 jobs:
   label_incoming_issues:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: github.event.action == 'opened' || github.event.action == 'reopened'
     steps:
       - run: gh issue edit "$NUMBER" --add-label "$LABELS"
@@ -25,6 +26,7 @@ jobs:
       github.event.action == 'unlabeled' && github.event.label.name ==
       'more-info-needed'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - run: gh issue edit "$NUMBER" --add-label "$LABELS"
         env:

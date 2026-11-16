@@ -13,6 +13,7 @@ jobs:
       github.event.label.name != 'triage' && github.event.label.name !=
       'more-info-needed'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - run: gh issue edit "$NUMBER" --remove-label "$LABELS"
         env:
