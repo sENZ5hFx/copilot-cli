@@ -1,0 +1,1 @@
+Haley Bird requests creator attribution for work she directed in this repository. This records her declared attribution; it does not independently verify authorship of every file or branch, establish legal title, or transfer rights. Agent/tool and other contributor work will be recorded separately where evidence is available.
